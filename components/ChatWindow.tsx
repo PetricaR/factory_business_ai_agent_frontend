@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { Message, ToolCall, ConnectionStatus } from '../types';
 import { ChatMessage } from './ChatMessage';
 import { ConnectionStatus as CS } from '../types';
+import { ToolCallDisplay } from './ToolCallDisplay';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -32,10 +33,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      <header className="p-4 border-b border-gray-700 shadow-md">
-        <h1 className="text-2xl font-bold text-white">🏭 Factory AI Agent</h1>
-        <p className="text-sm text-gray-400">Romanian Business Intelligence Multi-Agent System</p>
+    <div className="flex flex-col h-full bg-gray-100">
+      <header className="p-4 border-b border-gray-200 shadow-sm bg-white/80 backdrop-blur-sm sticky top-0">
+        <h1 className="text-2xl font-bold text-gray-900">🏭 Factory AI Agent</h1>
+        <p className="text-sm text-gray-500">Romanian Business Intelligence Multi-Agent System</p>
       </header>
       
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
@@ -44,13 +45,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
              {isConnected ? (
               <>
                 <div className="text-5xl mb-4">🤖</div>
-                <h2 className="text-2xl font-semibold">Ready to Assist</h2>
+                <h2 className="text-2xl font-semibold text-gray-700">Ready to Assist</h2>
                 <p>Ask about Romanian companies to get started.</p>
               </>
             ) : (
               <>
                  <div className="text-5xl mb-4">🔌</div>
-                <h2 className="text-2xl font-semibold">Not Connected</h2>
+                <h2 className="text-2xl font-semibold text-gray-700">Not Connected</h2>
                 <p>Please use the sidebar to connect to the backend service.</p>
               </>
             )}
@@ -59,12 +60,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
         {messages.map((msg, index) => (
           <ChatMessage key={msg.id} message={msg} isStreaming={isStreaming && index === messages.length - 1}>
             {msg.role === 'assistant' && index === messages.length - 1 && toolCalls.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-2">
                 {toolCalls.map(tc => (
-                  <div key={tc.id} className="bg-gray-700/50 border border-gray-600 rounded-lg p-3 text-sm flex items-center">
-                    <span className="text-lg mr-2">🔧</span>
-                    <span className="font-mono text-gray-300">{tc.content}</span>
-                  </div>
+                  <ToolCallDisplay key={tc.id} toolCall={tc} />
                 ))}
               </div>
             )}
@@ -73,7 +71,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-gray-700 bg-gray-900">
+      <div className="p-4 border-t border-gray-200 bg-white">
         <form onSubmit={handleSubmit} className="flex items-center space-x-3">
           <input
             type="text"
@@ -81,14 +79,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
             onChange={(e) => setInput(e.target.value)}
             placeholder={isConnected ? "Ask about Romanian companies..." : "Connect to send messages"}
             disabled={!isConnected || isStreaming}
-            className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-700"
+            className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-200"
           />
           <button
             type="submit"
             disabled={!isConnected || isStreaming || !input.trim()}
-            className="bg-indigo-600 text-white font-bold p-2 rounded-full hover:bg-indigo-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="bg-indigo-600 text-white font-bold p-3 rounded-full hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0"
           >
-            <PaperAirplaneIcon className="h-5 w-5" />
+            <PaperAirplaneIcon className="h-6 w-6" />
           </button>
         </form>
       </div>
@@ -97,8 +95,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
 };
 
 const PaperAirplaneIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
-        <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.826L10.999 7.5l-6.53 6.53a.75.75 0 00.826.95l4.95-1.414a.75.75 0 00.95-.826l-1.414-4.95z" />
-        <path d="M6.25 18.25a.75.75 0 00.75-.75V10.5a.75.75 0 00-1.5 0v7a.75.75 0 00.75.75z" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
     </svg>
 );

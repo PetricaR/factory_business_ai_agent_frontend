@@ -7,8 +7,8 @@ export interface Message {
 
 export interface ToolCall {
   id: string;
-  function: string;
-  content: string;
+  functionName: string;
+  args: Record<string, any>;
 }
 
 export enum ConnectionStatus {

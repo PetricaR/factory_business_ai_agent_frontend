@@ -55,10 +55,10 @@ export default function App() {
         (event) => {
           if (event.type === 'text_chunk') {
             setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessage.id ? { ...msg, content: msg.content + event.content } : msg
+              msg.id === assistantMessage.id ? { ...msg, content: event.content } : msg
             ));
           } else if (event.type === 'tool_call') {
-            setToolCalls(prev => [...prev, { id: uuidv4(), function: event.function, content: event.content }]);
+            setToolCalls(prev => [...prev, { id: uuidv4(), functionName: event.functionName, args: event.args }]);
           } else if (event.type === 'error') {
             setMessages(prev => prev.map(msg => 
               msg.id === assistantMessage.id ? { ...msg, content: `${msg.content}\n\n**Error:** ${event.content}` } : msg
@@ -89,7 +89,7 @@ export default function App() {
   }
 
   return (
-    <div className="bg-gray-900 text-gray-100 min-h-screen flex font-sans">
+    <div className="bg-gray-100 text-gray-800 min-h-screen flex font-sans">
       <Sidebar
         backendUrl={backendUrl}
         setBackendUrl={setBackendUrl}

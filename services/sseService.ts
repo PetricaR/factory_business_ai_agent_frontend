@@ -11,7 +11,7 @@ interface StreamQueryConfig {
 
 type SseEvent = 
   | { type: 'text_chunk'; content: string }
-  | { type: 'tool_call'; function: string; content: string }
+  | { type: 'tool_call'; functionName: string; args: Record<string, any> }
   | { type: 'final'; content: string }
   | { type: 'error'; content: string };
 
@@ -101,15 +101,22 @@ export const streamQuery = async (
             const eventData = JSON.parse(dataStr);
             
             if (eventData.content?.role === 'model') {
+              const newText = eventData.content.parts
+                .filter((p: any) => 'text' in p)
+                .map((p: any) => p.text)
+                .join('');
+              
+              if (newText) {
+                onEvent({ type: 'text_chunk', content: newText });
+              }
+
               for (const part of eventData.content.parts) {
-                if (part.text) {
-                  onEvent({ type: 'text_chunk', content: part.text });
-                } else if (part.function_call) {
+                if (part.function_call) {
                   const func = part.function_call;
                   onEvent({
                     type: 'tool_call',
-                    function: func.name,
-                    content: `🔧 ${func.name}`,
+                    functionName: func.name,
+                    args: func.args ?? {},
                   });
                 }
               }

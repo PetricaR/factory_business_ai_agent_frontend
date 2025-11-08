@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { ConnectionStatus } from '../types';
 import { StatusIndicator } from './StatusIndicator';
@@ -33,13 +34,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isConnecting = connectionStatus === 'CONNECTING';
 
   return (
-    <aside className="w-80 bg-gray-950 p-4 flex flex-col border-r border-gray-700 h-screen overflow-y-auto">
+    <aside className="w-80 bg-white p-4 flex flex-col border-r border-gray-200 h-screen overflow-y-auto">
       <div className="flex-1">
-        <h2 className="text-2xl font-bold text-white mb-4">⚙️ Configuration</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">⚙️ Configuration</h2>
 
         <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-200 mb-2">🎯 Backend</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">🎯 Backend</h3>
             <div className="space-y-3">
               <Input label="Backend URL" value={backendUrl} onChange={setBackendUrl} disabled={isConnected} />
               <Input label="App Name" value={appName} onChange={setAppName} disabled={isConnected} />
@@ -50,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onConnect}
             disabled={isConnecting || isConnected}
-            className="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-indigo-500/50"
           >
             {isConnecting ? (
                <Spinner />
@@ -62,17 +63,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        <hr className="border-gray-700 my-6" />
+        <hr className="border-gray-200 my-6" />
 
         <div>
-          <h3 className="text-lg font-semibold text-gray-200 mb-3">📊 Status</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">📊 Status</h3>
           <StatusIndicator status={connectionStatus} sessionId={sessionId} />
         </div>
 
-        <hr className="border-gray-700 my-6" />
+        <hr className="border-gray-200 my-6" />
         
         <div>
-          <h3 className="text-lg font-semibold text-gray-200 mb-3">💡 Quick Actions</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">💡 Quick Actions</h3>
           <div className="space-y-2">
             <ActionButton onClick={() => onQuickQuery("Ce îmi poți spune despre SEFINNI din Buzau?")} disabled={!isConnected}>
               🏢 Analyze Company
@@ -92,21 +93,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
 const Input: React.FC<{ label: string; value: string; onChange: (val: string) => void; disabled?: boolean }> = ({ label, value, onChange, disabled }) => (
   <div>
-    <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
+    <label className="block text-sm font-medium text-gray-600 mb-1">{label}</label>
     <input
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-700 disabled:text-gray-400"
+      className="w-full bg-gray-50 border border-gray-300 rounded-md px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow disabled:bg-gray-200 disabled:text-gray-500"
     />
   </div>
 );
 
 const ActionButton: React.FC<{ onClick: () => void; disabled: boolean; children: React.ReactNode; variant?: 'primary' | 'secondary' }> = ({ onClick, disabled, children, variant = 'primary' }) => {
   const baseClasses = "w-full text-left font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
-  const primaryClasses = "bg-gray-800 hover:bg-gray-700";
-  const secondaryClasses = "bg-red-900/50 hover:bg-red-800/60";
+  const primaryClasses = "bg-gray-100 hover:bg-gray-200 text-gray-800";
+  const secondaryClasses = "bg-red-100 hover:bg-red-200 text-red-800";
   
   return (
     <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${variant === 'primary' ? primaryClasses : secondaryClasses}`}>
