@@ -1,0 +1,5 @@
+{
+  "name": "Factory AI Agent - SSE Client",
+  "description": "A React-based client for a Romanian Business Intelligence Multi-Agent System. This application connects to a backend service, creates a session, and streams AI-generated responses using Server-Sent Events (SSE) over a POST request, providing real-time business insights.",
+  "requestFramePermissions": []
+}
