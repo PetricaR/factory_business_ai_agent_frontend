@@ -11,6 +11,13 @@ export interface ToolCall {
   args: Record<string, any>;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  messageCount: number;
+}
+
 export enum ConnectionStatus {
   DISCONNECTED = 'DISCONNECTED',
   CONNECTING = 'CONNECTING',

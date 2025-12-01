@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
 import { LoginPage } from './components/LoginPage';
 import { createSession, streamQuery } from './services/sseService';
-import type { Message, ToolCall, GoogleUser } from './types';
+import type { Message, ToolCall, GoogleUser, ChatSession } from './types';
 import { ConnectionStatus } from './types';
 import { DEFAULT_BACKEND_URL, DEFAULT_APP_NAME } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,16 +12,13 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND_URL);
   const [appName, setAppName] = useState(DEFAULT_APP_NAME);
   
-  // Load user from local storage on mount to persist login state, checking for expiration
+  // -- Auth State --
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(() => {
     try {
       const saved = localStorage.getItem('google_user');
       if (saved) {
         const user = JSON.parse(saved);
-        // Check if session is expired (if exp field exists)
-        // Date.now() is ms, exp is seconds
         if (user.exp && Date.now() >= user.exp * 1000) {
-           console.debug("Stored Google session expired");
            localStorage.removeItem('google_user');
            return null;
         }
@@ -29,73 +26,170 @@ export default function App() {
       }
       return null;
     } catch (e) {
-      console.error("Failed to load google user from storage", e);
       return null;
     }
   });
 
-  // Initialize userId from googleUser if available, otherwise generic ID (though generic ID is less relevant now with forced login)
-  const [userId, setUserId] = useState(() => {
-    return googleUser ? googleUser.email : `user_${Date.now()}`;
-  });
+  const [userId, setUserId] = useState(() => googleUser ? googleUser.email : `user_${Date.now()}`);
 
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  // -- Session State --
+  // We store all sessions metadata here
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+  // Messages map: sessionId -> Message[]
+  const [allMessages, setAllMessages] = useState<Record<string, Message[]>>({});
+  // Current view derived state
   const [messages, setMessages] = useState<Message[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.CONNECTED);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync Google User to LocalStorage and update UserId
+  // -- Persistence --
+
+  // Save user
   useEffect(() => {
     if (googleUser) {
       localStorage.setItem('google_user', JSON.stringify(googleUser));
       setUserId(googleUser.email);
     } else {
       localStorage.removeItem('google_user');
-      // If we just logged out (googleUser became null), set a new anonymous userId to be safe
       setUserId(`user_${Date.now()}`);
     }
   }, [googleUser]);
 
-  // When userId changes (login or logout), disconnect any existing session
+  // Load History on Mount
   useEffect(() => {
-    if (sessionId) {
-      setConnectionStatus(ConnectionStatus.DISCONNECTED);
-      setSessionId(null);
-      setMessages([]);
-      setToolCalls([]);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
+    if (userId) {
+        try {
+            const historyStr = localStorage.getItem(`chat_history_${userId}`);
+            if (historyStr) {
+                const history = JSON.parse(historyStr);
+                setSessions(history.sessions || []);
+                setAllMessages(history.messages || {});
+            } else {
+                setSessions([]);
+                setAllMessages({});
+            }
+        } catch(e) {
+            console.error("Failed to load history", e);
+        }
     }
   }, [userId]);
 
-  const handleConnect = useCallback(async () => {
-    setConnectionStatus(ConnectionStatus.CONNECTING);
-    try {
-      const newSessionId = await createSession(backendUrl, appName, userId);
-      setSessionId(newSessionId);
+  // Save History on Update
+  useEffect(() => {
+      if (userId) {
+          const history = {
+              sessions,
+              messages: allMessages
+          };
+          localStorage.setItem(`chat_history_${userId}`, JSON.stringify(history));
+      }
+  }, [sessions, allMessages, userId]);
+
+  // Update current messages view when switching session
+  useEffect(() => {
+      if (currentSessionId && allMessages[currentSessionId]) {
+          setMessages(allMessages[currentSessionId]);
+      } else {
+          setMessages([]);
+      }
+      setToolCalls([]); // Clear tool calls when switching (or store them too if needed, simplified for now)
+  }, [currentSessionId, allMessages]);
+
+  
+  // -- Handlers --
+
+  const handleNewChat = () => {
+      if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+      }
       setConnectionStatus(ConnectionStatus.CONNECTED);
+      setCurrentSessionId(null);
       setMessages([]);
-    } catch (error) {
-      console.error("Failed to connect:", error);
-      alert(`Connection failed: ${error instanceof Error ? error.message : String(error)}`);
-      setConnectionStatus(ConnectionStatus.DISCONNECTED);
-    }
-  }, [backendUrl, appName, userId]);
+      setToolCalls([]);
+  };
 
-  const handleSendMessage = useCallback(async (prompt: string) => {
-    if (!sessionId || connectionStatus !== ConnectionStatus.CONNECTED) {
-      alert("Please connect to the backend first.");
-      return;
+  const handleSelectSession = (id: string) => {
+      if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+      }
+      setCurrentSessionId(id);
+      setConnectionStatus(ConnectionStatus.CONNECTED);
+  };
+
+  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newSessions = sessions.filter(s => s.id !== id);
+      setSessions(newSessions);
+      
+      const newAllMessages = { ...allMessages };
+      delete newAllMessages[id];
+      setAllMessages(newAllMessages);
+
+      if (currentSessionId === id) {
+          handleNewChat();
+      }
+  };
+
+  const handleSendMessage = useCallback(async (prompt: string, files: File[] = []) => {
+    let activeSessionId = currentSessionId;
+    let isNewSession = false;
+
+    // 1. Initialize Session if needed
+    if (!activeSessionId) {
+        setConnectionStatus(ConnectionStatus.CONNECTING);
+        try {
+            activeSessionId = await createSession(backendUrl, appName, userId);
+            isNewSession = true;
+            setCurrentSessionId(activeSessionId);
+        } catch (error) {
+            console.error("Failed to create session", error);
+            alert("Could not start a new conversation. Check backend URL.");
+            setConnectionStatus(ConnectionStatus.CONNECTED); // Reset
+            return;
+        }
     }
 
-    const userMessage: Message = { id: uuidv4(), role: 'user', content: prompt };
+    // 2. Optimistic UI Update
+    // Process files as placeholder (append to text)
+    let fullContent = prompt;
+    if (files.length > 0) {
+        const fileInfo = files.map(f => `[Attachment: ${f.name}]`).join('\n');
+        fullContent = prompt ? `${prompt}\n\n${fileInfo}` : fileInfo;
+    }
+
+    const userMessage: Message = { id: uuidv4(), role: 'user', content: fullContent };
     const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: '' };
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
+    
+    // Update local state helpers
+    const updateMessagesForSession = (sid: string, newMsgs: Message[]) => {
+        setAllMessages(prev => ({
+            ...prev,
+            [sid]: newMsgs
+        }));
+    };
+
+    const currentMsgs = allMessages[activeSessionId!] || [];
+    const updatedMsgs = [...currentMsgs, userMessage, assistantMessage];
+    updateMessagesForSession(activeSessionId!, updatedMsgs);
+
+    // 3. Create Session Entry in Sidebar if new
+    if (isNewSession) {
+        const titleSource = prompt || "New Chat";
+        const newSession: ChatSession = {
+            id: activeSessionId!,
+            title: titleSource.length > 30 ? titleSource.substring(0, 30) + '...' : titleSource,
+            createdAt: Date.now(),
+            messageCount: 1
+        };
+        setSessions(prev => [newSession, ...prev]);
+    }
+
     setConnectionStatus(ConnectionStatus.STREAMING);
     setToolCalls([]);
 
@@ -104,62 +198,75 @@ export default function App() {
 
     try {
       await streamQuery(
-        { backendUrl, appName, userId, sessionId, message: prompt },
+        { backendUrl, appName, userId, sessionId: activeSessionId!, message: fullContent },
         (event) => {
           if (event.type === 'text_chunk') {
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessage.id ? { ...msg, content: msg.content + event.content } : msg
-            ));
+            setAllMessages(prevAll => {
+                const sessionMsgs = prevAll[activeSessionId!] || [];
+                const lastMsg = sessionMsgs[sessionMsgs.length - 1];
+                if (lastMsg && lastMsg.id === assistantMessage.id) {
+                    const updatedLastMsg = { ...lastMsg, content: lastMsg.content + event.content };
+                    const newSessionMsgs = [...sessionMsgs.slice(0, -1), updatedLastMsg];
+                    return { ...prevAll, [activeSessionId!]: newSessionMsgs };
+                }
+                return prevAll;
+            });
           } else if (event.type === 'tool_call') {
             setToolCalls(prev => [...prev, { id: uuidv4(), functionName: event.functionName, args: event.args }]);
           } else if (event.type === 'error') {
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessage.id ? { ...msg, content: `${msg.content}\n\n**Error:** ${event.content}` } : msg
-            ));
+             setAllMessages(prevAll => {
+                const sessionMsgs = prevAll[activeSessionId!] || [];
+                const lastMsg = sessionMsgs[sessionMsgs.length - 1];
+                if (lastMsg) {
+                    const updatedLastMsg = { ...lastMsg, content: lastMsg.content + `\n\n**Error:** ${event.content}` };
+                    return { ...prevAll, [activeSessionId!]: [...sessionMsgs.slice(0, -1), updatedLastMsg] };
+                }
+                return prevAll;
+             });
           }
         },
         signal
       );
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
-         setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessage.id ? { ...msg, content: `${msg.content}\n\n**Stream Error:** ${error.message}` } : msg
-         ));
+         // Handle stream error
+         setAllMessages(prevAll => {
+            const sessionMsgs = prevAll[activeSessionId!] || [];
+            const lastMsg = sessionMsgs[sessionMsgs.length - 1];
+             if (lastMsg) {
+                const updatedLastMsg = { ...lastMsg, content: lastMsg.content + `\n\n**Connection Error:** ${error.message}` };
+                return { ...prevAll, [activeSessionId!]: [...sessionMsgs.slice(0, -1), updatedLastMsg] };
+            }
+            return prevAll;
+         });
       }
     } finally {
       setConnectionStatus(ConnectionStatus.CONNECTED);
       abortControllerRef.current = null;
     }
-  }, [sessionId, connectionStatus, backendUrl, appName, userId]);
-  
-  const handleClearChat = () => {
-    setMessages([]);
-    setToolCalls([]);
-  }
-
-  // --- Render Logic ---
+  }, [backendUrl, appName, userId, currentSessionId, allMessages]);
 
   if (!googleUser) {
     return <LoginPage onLoginSuccess={setGoogleUser} />;
   }
 
   return (
-    <div className="bg-gray-100 text-gray-800 min-h-screen flex font-sans">
+    <div className="flex h-screen font-sans bg-white overflow-hidden">
       <Sidebar
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSelectSession={handleSelectSession}
+        onNewChat={handleNewChat}
+        onDeleteSession={handleDeleteSession}
         backendUrl={backendUrl}
         setBackendUrl={setBackendUrl}
         appName={appName}
         setAppName={setAppName}
         userId={userId}
-        setUserId={setUserId}
-        connectionStatus={connectionStatus}
-        onConnect={handleConnect}
-        onClear={handleClearChat}
-        sessionId={sessionId}
         googleUser={googleUser}
         setGoogleUser={setGoogleUser}
       />
-      <main className="flex-1 flex flex-col h-screen">
+      <main className="flex-1 flex flex-col h-full relative">
         <ChatWindow
           messages={messages}
           toolCalls={toolCalls}

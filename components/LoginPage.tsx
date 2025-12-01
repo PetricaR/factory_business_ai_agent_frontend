@@ -89,7 +89,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
          );
       }
       
-      google.accounts.id.prompt();
+      // Attempt to prompt, but suppress errors if it fails due to origin issues (hard to catch here, but UI fallback helps)
+      try {
+        google.accounts.id.prompt();
+      } catch (e) {
+        console.warn("GSI prompt failed", e);
+      }
 
     } catch (err) {
       console.error("Google Auth Init Error:", err);
@@ -109,20 +114,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const handleResetClientId = () => {
+      setLocalClientId('');
+      localStorage.removeItem('google_client_id');
+      setTempClientId('');
+  };
+
+  const handleGuestLogin = () => {
+    onLoginSuccess({
+        name: "Guest User",
+        email: `guest_${Date.now()}@local.dev`,
+        picture: "",
+        sub: `guest_${Date.now()}`,
+        // Token exp 24 hours
+        exp: Math.floor(Date.now() / 1000) + 86400
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4 font-sans">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-8">
         
         {/* Logo / Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-xl flex items-center justify-center mb-4 shadow-lg">
-             <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 10H6C4.89543 10 4 10.8954 4 12V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V12C20 10.8954 19.1046 10 18 10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M12 10V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M12 4H12.01" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-             </svg>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Factory AI Agent</h2>
+          <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Factory AI Agent</h2>
           <p className="mt-2 text-sm text-gray-500">
             Romanian Business Intelligence Multi-Agent System
           </p>
@@ -134,26 +149,47 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <div className="flex flex-col items-center space-y-4">
                <div ref={googleButtonWrapperRef} className="h-[44px] w-[300px] flex justify-center"></div>
                <p className="text-xs text-gray-400">Secure access via Google Identity</p>
+               
+               <button 
+                 onClick={handleResetClientId}
+                 className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline mt-4"
+               >
+                 Change Client ID / Switch Method
+               </button>
             </div>
           ) : (
-             <div className="bg-blue-50 p-6 rounded-lg border border-blue-100">
-                <h3 className="text-sm font-bold text-blue-900 mb-2">Configuration Required</h3>
-                <p className="text-xs text-blue-700 mb-4">
-                  Please enter your Google Client ID to enable authentication.
+             <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h3 className="text-sm font-bold text-gray-700 mb-2">Authentication Setup</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Enter your Google Client ID to enable Google Sign-In, or continue as a guest.
                 </p>
+                
                 <input 
                   type="text" 
                   placeholder="Client ID (e.g., 123...apps.googleusercontent.com)"
-                  className="w-full text-sm p-3 border border-blue-200 rounded mb-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full text-sm p-3 border border-gray-300 rounded mb-3 focus:ring-2 focus:ring-[#10a37f] outline-none"
                   value={tempClientId}
                   onChange={e => setTempClientId(e.target.value)}
                 />
                 <button 
                   onClick={handleSaveClientId}
                   disabled={!tempClientId.trim()}
-                  className="w-full bg-blue-600 text-white text-sm font-bold py-3 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="w-full bg-[#10a37f] text-white text-sm font-bold py-3 rounded hover:bg-[#0d8a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
                 >
-                  Save Configuration
+                  Save & Login with Google
+                </button>
+
+                <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-gray-300"></div>
+                    <span className="flex-shrink mx-4 text-gray-400 text-xs">OR</span>
+                    <div className="flex-grow border-t border-gray-300"></div>
+                </div>
+
+                <button
+                    onClick={handleGuestLogin}
+                    className="w-full bg-white text-gray-700 border border-gray-300 text-sm font-bold py-3 rounded hover:bg-gray-100 transition-colors mt-2"
+                >
+                    Continue as Guest
                 </button>
              </div>
           )}
