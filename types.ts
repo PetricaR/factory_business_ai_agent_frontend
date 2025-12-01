@@ -17,3 +17,11 @@ export enum ConnectionStatus {
   CONNECTED = 'CONNECTED',
   STREAMING = 'STREAMING',
 }
+
+export interface GoogleUser {
+  name: string;
+  email: string;
+  picture: string;
+  sub: string; // Google's unique ID for the user
+  exp?: number; // Token expiration timestamp (seconds)
+}

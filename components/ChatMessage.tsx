@@ -1,8 +1,7 @@
-
 import React from 'react';
 import type { Message } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown@9';
-import remarkGfm from 'https://esm.sh/remark-gfm@4';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessageProps {
   message: Message;
@@ -10,7 +9,7 @@ interface ChatMessageProps {
   children?: React.ReactNode;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming, children }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, isStreaming, children }) => {
   const { role, content } = message;
   const isUser = role === 'user';
 
@@ -47,4 +46,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming, 
       )}
     </div>
   );
-};
+});
+
+ChatMessage.displayName = 'ChatMessage';

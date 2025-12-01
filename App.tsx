@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
+import { LoginPage } from './components/LoginPage';
 import { createSession, streamQuery } from './services/sseService';
-import type { Message, ToolCall } from './types';
+import type { Message, ToolCall, GoogleUser } from './types';
 import { ConnectionStatus } from './types';
 import { DEFAULT_BACKEND_URL, DEFAULT_APP_NAME } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,7 +11,34 @@ import { v4 as uuidv4 } from 'uuid';
 export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND_URL);
   const [appName, setAppName] = useState(DEFAULT_APP_NAME);
-  const [userId, setUserId] = useState(`user_${Date.now()}`);
+  
+  // Load user from local storage on mount to persist login state, checking for expiration
+  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('google_user');
+      if (saved) {
+        const user = JSON.parse(saved);
+        // Check if session is expired (if exp field exists)
+        // Date.now() is ms, exp is seconds
+        if (user.exp && Date.now() >= user.exp * 1000) {
+           console.debug("Stored Google session expired");
+           localStorage.removeItem('google_user');
+           return null;
+        }
+        return user;
+      }
+      return null;
+    } catch (e) {
+      console.error("Failed to load google user from storage", e);
+      return null;
+    }
+  });
+
+  // Initialize userId from googleUser if available, otherwise generic ID (though generic ID is less relevant now with forced login)
+  const [userId, setUserId] = useState(() => {
+    return googleUser ? googleUser.email : `user_${Date.now()}`;
+  });
+
   const [sessionId, setSessionId] = useState<string | null>(null);
   
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
@@ -19,6 +46,32 @@ export default function App() {
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sync Google User to LocalStorage and update UserId
+  useEffect(() => {
+    if (googleUser) {
+      localStorage.setItem('google_user', JSON.stringify(googleUser));
+      setUserId(googleUser.email);
+    } else {
+      localStorage.removeItem('google_user');
+      // If we just logged out (googleUser became null), set a new anonymous userId to be safe
+      setUserId(`user_${Date.now()}`);
+    }
+  }, [googleUser]);
+
+  // When userId changes (login or logout), disconnect any existing session
+  useEffect(() => {
+    if (sessionId) {
+      setConnectionStatus(ConnectionStatus.DISCONNECTED);
+      setSessionId(null);
+      setMessages([]);
+      setToolCalls([]);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    }
+  }, [userId]);
 
   const handleConnect = useCallback(async () => {
     setConnectionStatus(ConnectionStatus.CONNECTING);
@@ -55,7 +108,7 @@ export default function App() {
         (event) => {
           if (event.type === 'text_chunk') {
             setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessage.id ? { ...msg, content: event.content } : msg
+              msg.id === assistantMessage.id ? { ...msg, content: msg.content + event.content } : msg
             ));
           } else if (event.type === 'tool_call') {
             setToolCalls(prev => [...prev, { id: uuidv4(), functionName: event.functionName, args: event.args }]);
@@ -79,13 +132,15 @@ export default function App() {
     }
   }, [sessionId, connectionStatus, backendUrl, appName, userId]);
   
-  const handleQuickQuery = (query: string) => {
-    handleSendMessage(query);
-  };
-  
   const handleClearChat = () => {
     setMessages([]);
     setToolCalls([]);
+  }
+
+  // --- Render Logic ---
+
+  if (!googleUser) {
+    return <LoginPage onLoginSuccess={setGoogleUser} />;
   }
 
   return (
@@ -99,9 +154,10 @@ export default function App() {
         setUserId={setUserId}
         connectionStatus={connectionStatus}
         onConnect={handleConnect}
-        onQuickQuery={handleQuickQuery}
         onClear={handleClearChat}
         sessionId={sessionId}
+        googleUser={googleUser}
+        setGoogleUser={setGoogleUser}
       />
       <main className="flex-1 flex flex-col h-screen">
         <ChatWindow

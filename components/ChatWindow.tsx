@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { Message, ToolCall, ConnectionStatus } from '../types';
 import { ChatMessage } from './ChatMessage';
@@ -44,7 +43,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
              {isConnected ? (
               <>
-                <div className="text-5xl mb-4">🤖</div>
+                <AiLogoIcon className="w-24 h-24 mb-4" />
                 <h2 className="text-2xl font-semibold text-gray-700">Ready to Assist</h2>
                 <p>Ask about Romanian companies to get started.</p>
               </>
@@ -93,6 +92,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, toolCalls, onS
     </div>
   );
 };
+
+const AiLogoIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Head shape */}
+    <path 
+      d="M18 10H6C4.89543 10 4 10.8954 4 12V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V12C20 10.8954 19.1046 10 18 10Z" 
+      className="text-gray-300" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+    {/* Antenna */}
+    <path 
+      d="M12 10V6" 
+      className="text-gray-300" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+    <path 
+      d="M12 4H12.01" 
+      className="text-indigo-500" 
+      stroke="currentColor" 
+      strokeWidth="2.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+    {/* Eyes */}
+    <path 
+      d="M9 15H9.01" 
+      className="text-gray-700" 
+      stroke="currentColor" 
+      strokeWidth="2.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+    <path 
+      d="M15 15H15.01" 
+      className="text-gray-700" 
+      stroke="currentColor" 
+      strokeWidth="2.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+  </svg>
+);
+
 
 const PaperAirplaneIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>

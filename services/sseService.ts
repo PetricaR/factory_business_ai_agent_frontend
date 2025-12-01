@@ -85,6 +85,7 @@ export const streamQuery = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    const seenToolCalls = new Set<string>();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -100,30 +101,44 @@ export const streamQuery = async (
           try {
             const eventData = JSON.parse(dataStr);
             
-            if (eventData.content?.role === 'model') {
-              const newText = eventData.content.parts
-                .filter((p: any) => 'text' in p)
+            if (eventData.content?.role === 'model' && Array.isArray(eventData.content.parts)) {
+              const parts = eventData.content.parts;
+              
+              // Handle text parts as pure stream deltas
+              const textContent = parts
+                .filter((p: any) => p && typeof p.text === 'string')
                 .map((p: any) => p.text)
                 .join('');
               
-              if (newText) {
-                onEvent({ type: 'text_chunk', content: newText });
+              if (textContent) {
+                onEvent({ type: 'text_chunk', content: textContent });
               }
 
-              for (const part of eventData.content.parts) {
-                if (part.function_call) {
+              // Handle tool calls
+              for (const part of parts) {
+                if (part && part.function_call) {
                   const func = part.function_call;
-                  onEvent({
-                    type: 'tool_call',
-                    functionName: func.name,
-                    args: func.args ?? {},
-                  });
+                  const toolCallKey = JSON.stringify({ name: func.name, args: func.args });
+                  if (!seenToolCalls.has(toolCallKey)) {
+                      seenToolCalls.add(toolCallKey);
+                      onEvent({
+                        type: 'tool_call',
+                        functionName: func.name,
+                        args: func.args ?? {},
+                      });
+                  }
                 }
               }
+            } else if (eventData.error) {
+                onEvent({ type: 'error', content: String(eventData.error) });
             }
 
           } catch (e) {
             console.warn('Failed to parse SSE data:', dataStr, e);
+            // Handle malformed JSON that looks like an error
+            if (typeof dataStr === 'string' && dataStr.includes('"error"')) {
+                onEvent({ type: 'error', content: `Received error from server: ${dataStr}`});
+            }
           }
         }
       }
